@@ -1,6 +1,11 @@
 ---
-title: Exploratory data analysis, prinicipal component analysis and linear regression with R
-output: html_notebook
+title: Exploratory data analysis, prinicipal component analysis and linear regression
+  with R
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
 In this notebook, we will conduct an exploratory data analysis and linear regression with R using the Walmart sales data set from this Kaggle [link](https://www.kaggle.com/datasets/yasserh/walmart-dataset?select=Walmart.csv). For that let's load the important libraries for data analysis. Here we will use *pacman* package for managing add on packages. If the packages already exist, it will load them, otherwise it will download and load the packages.\
@@ -356,13 +361,13 @@ reg_test # print the coefficients only
 ```
 
 ```{r}
-summary(reg)  # Inferential tests
+summary(reg_test)  # Inferential tests
 ```
 
 Let' look at the actaual weekly sales and predicted weekly sales from the training data
 
 ```{r}
-pred_ytrain <- predict(reg, newdata = as.data.frame(xtrain))
+pred_ytrain <- predict(reg_test, newdata = as.data.frame(xtrain))
 
 for (i in seq(1:30)){
   str <- sprintf("Actual : %f, predicted :%f \n", ytrain[i], pred_ytrain[i])
