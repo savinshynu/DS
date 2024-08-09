@@ -1,0 +1,390 @@
+---
+title: Exploratory data analysis, prinicipal component analysis and linear regression
+  with R
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+In this notebook, we will conduct an exploratory data analysis and linear regression with R using the Walmart sales data set from this Kaggle [link](https://www.kaggle.com/datasets/yasserh/walmart-dataset?select=Walmart.csv). For that let's load the important libraries for data analysis. Here we will use *pacman* package for managing add on packages. If the packages already exist, it will load them, otherwise it will download and load the packages.\
+
+```{r}
+#use require() or library() to load the base packages
+require(pacman) # gives a confirmation message
+library(pacman) # load the package, but no confirmation message
+```
+
+```{r}
+# We can load all these packages at at time which are commonly used
+pacman::p_load(pacman, dplyr, GGally, ggplot2, ggthemes, 
+  ggvis, httr, lubridate, plotly, rio, rmarkdown, shiny, 
+  stringr, tidyr) 
+# you can install the packages independently via " install.packages("package_name")
+```
+
+Now let's read in the Walmart dataset and conduct some exploratory data analysis and visualizations. We will utilize the *import* function from rio library to import files like csv, xlsx, txt, etc. Other wise we need to use specific functions like read.csv, read.table, etc.
+
+```{r}
+data1 <- import('../../datasets/Walmart.csv') # specify the path location
+
+# Alternatively we could also use the read.csv(filepath, header = True) option
+#data1 = read.csv('../../datasets/Walmart.csv', header = TRUE)
+```
+
+```{r}
+# disaplay the first 20 entries of the data
+head(data1,20)
+```
+
+```{r}
+# dimension of the dataset
+dim(data1)
+```
+
+The dataset has 6435 rows and 8 columns which correspond to the following attribute
+
+-   Store - the store number
+
+-   Date - the week of sales
+
+-   Weekly_Sales - sales for the given store
+
+-   Holiday_Flag - whether the week is a special holiday week 1 – Holiday week 0 – Non-holiday week
+
+-   Temperature - Temperature on the day of sale
+
+-   Fuel_Price - Cost of fuel in the region
+
+-   CPI – Prevailing consumer price index
+
+-   Unemployment - Prevailing unemployment rate
+
+-   Holiday Events\<br /\> Super Bowl: 12-Feb-10, 11-Feb-11, 10-Feb-12, 8-Feb-13\<br /\> Labour Day: 10-Sep-10, 9-Sep-11, 7-Sep-12, 6-Sep-13\<br /\> Thanksgiving: 26-Nov-10, 25-Nov-11, 23-Nov-12, 29-Nov-13\<br /\> Christmas: 31-Dec-10, 30-Dec-11, 28-Dec-12, 27-Dec-13
+
+    ```{r}
+    summary(data1)
+    ```
+
+Since it it is little bit cluttered, let's take a look at the weekly sales column.
+
+```{r}
+summary(data1$Weekly_Sales)
+```
+
+```{r}
+# Let's get the unique store values
+unique(data1$Store)
+```
+
+So there are 45 Walmart stores in this data set. We need to aggregate the data by store number and add the weekly sales to see if certain stores have more sales compared to others. In order to do this, we will utilize the *group_by* function from dplyr library. Let's group the data by store number and store the sum of weekly sales into another data frame, gdf.
+
+'%\>%' is used to combine different functions in R.
+
+```{r}
+gdf <- data1 %>% group_by(data1$Store) %>% 
+       summarise(Total_sales = sum(Weekly_Sales))
+gdf
+```
+
+```{r}
+# plot the sales as a function of store number
+plot(gdf, col = 'blue', type = 'h', pch = 19, main = "Total Sales", xlab = "Store Number", ylab= "Sales")
+```
+
+As we can see, some of the stores have higher cumulative sales compared to others and this could be a regional factor as well. Now let's see how the sales change as a function of date for a single store, e.g. store 1. For this we will use the *plot_ly* tool in the plotly library.
+
+```{r}
+#plot the sales as a function of the date as well
+fig <- plot_ly(data1, type = 'scatter', mode = 'markers')%>%
+  add_trace(x = data1$Date[data1$Store == 1], y = data1$Weekly_Sales[data1$Store == 1])%>%
+  layout(showlegend = F)
+fig <- fig %>%
+  layout(
+         xaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         yaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         plot_bgcolor='#e5ecf6', width = 900)
+fig
+```
+
+Interesting there is a spike in the weeky sales during the time between Thanksgiving and Christmas in 2010 and 2011. For that we will group the data by date. Let's plot the same for all stores here.
+
+```{r}
+#plot the sales as a function of the date as well
+fig <- plot_ly(data1, type = 'scatter', mode = 'markers')%>%
+  add_trace(x = data1$Date, y = data1$Weekly_Sales)%>%
+  layout(showlegend = F)
+fig <- fig %>%
+  layout(
+         xaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         yaxis = list(zerolinecolor = '#ffff',
+                      zerolinewidth = 2,
+                      gridcolor = 'ffff'),
+         plot_bgcolor='#e5ecf6', width = 900)
+fig
+```
+
+If we look at the holiday events,
+
+-   Super Bowl: 12-Feb-10, 11-Feb-11, 10-Feb-12, 8-Feb-13
+
+<!-- -->
+
+-   Labour Day: 10-Sep-10, 9-Sep-11, 7-Sep-12, 6-Sep-13
+
+-   Thanksgiving: 26-Nov-10, 25-Nov-11, 23-Nov-12, 29-Nov-13
+
+-   Christmas: 31-Dec-10, 30-Dec-11, 28-Dec-12, 27-Dec-13
+
+We can clearly see an increase in Sales during the holiday season and it always reaches a peak during the time between Thanksgiving and Christmas.
+
+Let's make a scatter plot of Weekly sales and temperature.
+
+```{r}
+plot( data1$Temperature, data1$Weekly_Sales, col = 'blue', main = 'Sales wrt Temp', ylab = "Weekly Sales", xlab = "Temperature")
+```
+
+The Weekly sales and temperature seems to be not correlate with each other. Let' make do some more plotting in subplots format to look for correlations using the plotly library
+
+```{r}
+#Initialize figures 
+fig1 <- plot_ly(x = data1$Holiday_Flag, y = data1$Weekly_Sales, type = 'scatter', name = 'holiday', mode = 'markers') %>%
+  layout(xaxis = list(title = 'Holiday Flag'), yaxis = list(title = 'Weekly Sales'))
+
+fig2 <- plot_ly(x = data1$Fuel_Price, y = data1$Weekly_Sales, type = 'scatter', name = 'Fuel', mode = 'markers') %>%
+  layout(xaxis = list(title = 'Fuel Price'), yaxis = list(title = 'Weekly Sales'))
+
+fig3 <- plot_ly(x = data1$CPI, y = data1$Weekly_Sales, type = 'scatter', name = 'CPI',  mode = 'markers') %>%
+  layout(xaxis = list(title = 'CPI'), yaxis = list(title = 'Weekly Sales'))
+
+fig4 <- plot_ly(x = data1$Unemployment, y = data1$Weekly_Sales, type = 'scatter', name = 'Unemployment', mode = 'markers') %>%
+  layout(xaxis = list(title = 'Unemployment'), yaxis = list(title = 'Weekly Sales'))
+
+#creating subplot
+fig <- subplot(fig1, fig2, fig3, fig4, nrows = 2, titleY = TRUE, titleX = TRUE, margin = 0.1 )
+fig <- fig %>%layout(title = 'Weekly Sales wrt Different Factors',
+                     plot_bgcolor='#e5ecf6', 
+         xaxis = list( 
+           zerolinecolor = '#ffff', 
+           zerolinewidth = 2, 
+           gridcolor = 'ffff'), 
+         yaxis = list( 
+           zerolinecolor = '#ffff', 
+           zerolinewidth = 2, 
+           gridcolor = 'ffff'), autosize = F, width = 900, height = 500)
+fig
+```
+
+As we can see the weekly sales is not directly correlated with holiday flag, fuel price, CPI. The weekly sales goes down as the unemployment rates go up.
+
+*From our primary exploratory data analysis, what we can understand is that the Weekly sales mainly depend on the holiday time and the geographical location/store number in this data set. Also, the Sales are better during lower unemployment index.*
+
+## Cleaning the data
+
+Let' see if the data has any missing values or Nan values before modeling the data. We will use the *filter* function to filter missing/Nan values and use the *mutate* to replace the bad values.
+
+```{r}
+data1 %>% 
+  summarise(count = sum(is.na(data1)))
+```
+
+This data was taken from Kaggle and does not contain any NA/Nan values. But we could introduce some Nan values and clean the data set.
+
+```{r}
+data1[5,5] <- NA
+data1[9,5] <- NaN
+head(data1, 10)
+```
+
+Now let's try again for NA/NaN values. *is.na* would check for both NA and NaN values while *is.nan* will only check for NaN values.
+
+```{r}
+data1 %>% 
+  summarise(count = sum(is.na(data1)))
+```
+
+```{r}
+#is.nan requires a list of data
+data1 %>% 
+  summarise(count = sum(is.nan(data1$Temperature)))
+```
+
+Let's replace the NA/NaNs with the median values in the data set.
+
+```{r}
+data1 <- data1 %>% 
+        mutate(Temperature = replace(Temperature, is.na(Temperature), median(Temperature, na.rm = TRUE)))
+head(data1, 10)
+```
+
+# Preprocessing
+
+Before modeling the data, we need to convert the dates into a more meaning full numbers. In our case, rather than converting days into some numbers, we need it as a cyclic variable going from 1-365 as our sales are a function of different time of an year, especially the holiday time. Let's write a function to do that.
+
+```{r}
+#defining a function to convert the dates into day in a year
+date_to_number <- function(dates){
+  num_date <- c()
+  #print(length(num_date))
+  for (i in seq(1:length(dates))){
+      date <-  dates[i]
+      d <- strtoi(substr(date, 1, 2), 10) # getting the string values and converting to integers, using base 10 here.
+      m <- strtoi(substr(date, 4, 5), 10)
+      y <- strtoi(substr(date, 7, 10), 10)
+      
+      num_date <- append(num_date, m*30 + d)
+      
+      #cat(i, date, num_date[[i]], "\n")
+  }
+  return (num_date)
+}
+
+new_dates <- date_to_number(data1$Date) 
+#print(new_dates)
+
+# add the new date numbers to the dataframe
+data1 <- data1 %>%
+         mutate(date_number = new_dates)
+head(data1,6)
+```
+
+```{r}
+# Now let's make a plot using ggplot to plot the sales as a fuction of the new date numbers we created
+ggplot(data = data1, mapping = aes(y = Weekly_Sales, x = date_number, color = Holiday_Flag)) + geom_point() + labs(title = "Weekly sales wrt day in a year", x = "Nth day in a year", y = "Weeskly sales")
+```
+
+One interesting thing to note here is that, some of the high sales time between after Thanksgiving and before Christmas has been marked as not a holiday flag which might affect the modeling of the data.
+
+## Correlation calculation
+
+Let's build a correlation matrix first using the Pearson correlation coefficient.
+
+```{r}
+data_new <- data1[-2] # removing the dates column
+head(data_new)
+
+#use the cor function to get the correlation of features in the data frame
+res = cor(data_new)
+round(res,2)
+```
+
+```{r}
+# Let's import the corrplot library for the visualization of the correlation
+library(corrplot)
+corrplot(res, type = "full", order = "hclust", 
+         tl.col = "black", tl.srt = 45)
+```
+
+In this correlogram, the radius of the circle represent the correlation strength and the colors represents the positive/negative correlation. As we can see, for the weekly sales has some correlation with the store number and it weakly/not correlated with the rest of features.
+
+## Principal component analysis
+
+Before modeling of the data, let's do principal component analysis (PCA) of the data for visualization and understand the correlation within the data set.
+
+```{r}
+# using prcomp function for PCA
+pc <- prcomp(data_new,
+        center = TRUE,  # Centers means to 0 (optional)
+        scale = TRUE)   # Sets unit variance (helpful)
+
+# Get summary stats
+summary(pc)
+```
+
+As you can see the variance is mostly spread out and the data is not much correlated.
+
+```{r}
+#Screeplot for number of components
+plot(pc)
+```
+
+```{r}
+# Get standard deviations and rotation
+pc
+```
+
+```{r}
+# See how cases load on PCs
+pre <- predict(pc) %>% round(2)
+dim(pre)
+```
+
+```{r}
+#plotting the first 2 components
+plot(pre[,1], pre[,2], xlab = "Component 1", ylab = "Component 2")
+```
+
+```{r}
+# Biplot of first two components
+biplot(pc)
+```
+
+As you can see, there the first 2 principal components only explains only 36% of the data and they don't have any linear correlation as well. Here in the biplot, length of vectors denote how much it has contributed to the component and cos(angle between vectors) is proportional to the correlation between them. As you can see, the weekly sales and holiday flag are correlated.
+
+## Multivariate linear regression
+
+Now let's do the multivariate modeling of the data. For that let's define the x and y data.
+
+```{r}
+# Let's shuffle the dataset before splitting
+data_shuff <- data1[sample(1:nrow(data1)),]
+
+# define x and y values
+x = data_shuff[c(-2, -3)]
+x <- as.matrix(x)
+y <- data_shuff$Weekly_Sales
+
+# let's split the data into test, validatation and test datasets with 70:20:10 ratio
+# In total the dataset has 6435 rows
+xtrain <- x[1:4504,]
+ytrain <- y[1:4504]
+
+xval <- x[4505:5792, ]
+yval <- x[4505:5792]
+
+xtest <- x[5793:6435,]
+ytest <- y[5793:6435]
+```
+
+```{r}
+# Now let's use a linear model on the test dataset first
+reg_test <- lm(ytrain ~ xtrain)
+
+reg_test # print the coefficients only
+```
+
+```{r}
+summary(reg_test)  # Inferential tests
+```
+
+Let' look at the actaual weekly sales and predicted weekly sales from the training data
+
+```{r}
+pred_ytrain <- predict(reg_test, newdata = as.data.frame(xtrain))
+
+for (i in seq(1:30)){
+  str <- sprintf("Actual : %f, predicted :%f \n", ytrain[i], pred_ytrain[i])
+  cat(str)
+}
+```
+
+The R statistics should be close to 1 and in our case we are getting 0.14. Also the residual error is really high. Maybe our simple multivariate regression model is not good enough for the prediction purpose here which is also evident after looking at the first 30 actual weekly sales and predicted sales. Feature engineering could have been done if some of the features exhibited some non-linear relationship with the Weekly sales.
+
+We will revisit this problem with a polynomial regression and decision tree regression in the future.
+
+```{r}
+# How to clear packages 
+#p_unload(dplyr, tidyr, stringr) # Clear specific packages
+p_unload(all)  # Easier: clears all add-ons
+#detach("package:datasets", unload = TRUE)  # For base packages
+
+# Clear console
+#cat("\014")  # ctrl+L
+```
